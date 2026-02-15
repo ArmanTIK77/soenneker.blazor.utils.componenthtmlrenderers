@@ -43,7 +43,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="AngleSharp" Version="1.4.0" />
         <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.3" />
+        <PackageReference Include="Soenneker.Extensions.String" Version="4.0.605" />
         <PackageReference Include="Soenneker.Extensions.Task" Version="4.0.111" />
         <PackageReference Include="Soenneker.Extensions.ValueTask" Version="4.0.104" />
     </ItemGroup>

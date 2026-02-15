@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Web.HtmlRendering;
@@ -10,6 +6,15 @@ using Microsoft.Extensions.Logging;
 using Soenneker.Blazor.Utils.ComponentHtmlRenderers.Abstract;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using AngleSharp;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
+using Soenneker.Extensions.String;
 
 namespace Soenneker.Blazor.Utils.ComponentHtmlRenderers;
 
@@ -109,7 +114,27 @@ public sealed class ComponentHtmlRenderer : IComponentHtmlRenderer
 
         await using var sw = new StringWriter();
         root.WriteHtmlTo(sw);
-        return sw.ToString();
+        string html = sw.ToString();
+        return await ToBrowserHtml(html);
+    }
+
+    private static async ValueTask<string> ToBrowserHtml(string html, CancellationToken cancellationToken = default)
+    {
+        if (html.IsNullOrEmpty())
+            return html;
+
+        IBrowsingContext context = BrowsingContext.New(Configuration.Default);
+        IDocument document = await context.OpenNewAsync(cancellation: cancellationToken);
+
+        var parser = context.GetService<IHtmlParser>();
+        INodeList fragment = parser.ParseFragment(html, document.Body);
+
+        await using var writer = new StringWriter();
+
+        foreach (INode node in fragment)
+            await node.ToHtmlAsync(writer).NoSync();
+
+        return writer.ToString();
     }
 
     public async ValueTask DisposeAsync()
