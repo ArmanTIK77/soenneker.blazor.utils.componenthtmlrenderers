@@ -41,7 +41,7 @@ public interface IComponentHtmlRenderer : IAsyncDisposable
     /// Thrown if <paramref name="componentType"/> is <see langword="null"/>.
     /// </exception>
     [Pure]
-    Task<string> RenderToHtml(Type componentType, IReadOnlyDictionary<string, object?>? parameters = null);
+    Task<string> RenderToHtml(Type componentType, IReadOnlyDictionary<string, object?>? parameters = null, bool htmlDecode = false);
 
     /// <summary>
     /// Renders the specified Blazor component to an HTML string using a generic fast path.
@@ -61,7 +61,7 @@ public interface IComponentHtmlRenderer : IAsyncDisposable
     /// preferable when the component type is known at compile time.
     /// </remarks>
     [Pure]
-    Task<string> RenderToHtml<TComponent>(IReadOnlyDictionary<string, object?>? parameters = null)
+    Task<string> RenderToHtml<TComponent>(IReadOnlyDictionary<string, object?>? parameters = null, bool htmlDecode = false)
         where TComponent : IComponent;
 
     /// <summary>
@@ -84,5 +84,5 @@ public interface IComponentHtmlRenderer : IAsyncDisposable
     /// Thrown if <paramref name="componentType"/> or <paramref name="buildParameters"/> is <see langword="null"/>.
     /// </exception>
     [Pure]
-    Task<string> RenderToHtml(Type componentType, Action<Dictionary<string, object?>> buildParameters);
+    Task<string> RenderToHtml(Type componentType, Action<Dictionary<string, object?>> buildParameters, bool htmlDecode = false);
 }

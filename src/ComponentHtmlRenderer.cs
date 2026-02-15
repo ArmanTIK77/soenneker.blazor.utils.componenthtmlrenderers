@@ -9,12 +9,8 @@ using Soenneker.Extensions.ValueTask;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Net;
 using System.Threading.Tasks;
-using AngleSharp;
-using AngleSharp.Dom;
-using AngleSharp.Html.Parser;
-using Soenneker.Extensions.String;
 
 namespace Soenneker.Blazor.Utils.ComponentHtmlRenderers;
 
@@ -36,7 +32,7 @@ public sealed class ComponentHtmlRenderer : IComponentHtmlRenderer
 
         var loggerFactory = _serviceProvider.GetService<ILoggerFactory>();
 
-        if (loggerFactory == null)
+        if (loggerFactory is null)
             throw new Exception("ILoggerFactory on the service provider is required");
 
         _renderer = new HtmlRenderer(_serviceProvider, loggerFactory);
@@ -67,30 +63,38 @@ public sealed class ComponentHtmlRenderer : IComponentHtmlRenderer
         return buildServiceProvider(services);
     }
 
-    public Task<string> RenderToHtml(Type componentType, IReadOnlyDictionary<string, object?>? parameters = null)
+    public Task<string> RenderToHtml(
+        Type componentType,
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        bool htmlDecode = false)
     {
         if (componentType is null) throw new ArgumentNullException(nameof(componentType));
 
         parameters ??= EmptyParams.Instance;
 
         if (_renderer.Dispatcher.CheckAccess())
-            return RenderCore(componentType, parameters);
+            return RenderCore(componentType, parameters, htmlDecode);
 
-        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(componentType, parameters));
+        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(componentType, parameters, htmlDecode));
     }
 
-    public Task<string> RenderToHtml<TComponent>(IReadOnlyDictionary<string, object?>? parameters = null)
+    public Task<string> RenderToHtml<TComponent>(
+        IReadOnlyDictionary<string, object?>? parameters = null,
+        bool htmlDecode = false)
         where TComponent : IComponent
     {
         parameters ??= EmptyParams.Instance;
 
         if (_renderer.Dispatcher.CheckAccess())
-            return RenderCore(typeof(TComponent), parameters);
+            return RenderCore(typeof(TComponent), parameters, htmlDecode);
 
-        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(typeof(TComponent), parameters));
+        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(typeof(TComponent), parameters, htmlDecode));
     }
 
-    public Task<string> RenderToHtml(Type componentType, Action<Dictionary<string, object?>> buildParameters)
+    public Task<string> RenderToHtml(
+        Type componentType,
+        Action<Dictionary<string, object?>> buildParameters,
+        bool htmlDecode = false)
     {
         if (componentType is null) throw new ArgumentNullException(nameof(componentType));
         if (buildParameters is null) throw new ArgumentNullException(nameof(buildParameters));
@@ -99,12 +103,15 @@ public sealed class ComponentHtmlRenderer : IComponentHtmlRenderer
         buildParameters(dict);
 
         if (_renderer.Dispatcher.CheckAccess())
-            return RenderCore(componentType, dict);
+            return RenderCore(componentType, dict, htmlDecode);
 
-        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(componentType, dict));
+        return _renderer.Dispatcher.InvokeAsync(() => RenderCore(componentType, dict, htmlDecode));
     }
 
-    private async Task<string> RenderCore(Type componentType, IReadOnlyDictionary<string, object?> parameters)
+    private async Task<string> RenderCore(
+        Type componentType,
+        IReadOnlyDictionary<string, object?> parameters,
+        bool htmlDecode)
     {
         ParameterView pv = parameters.Count == 0
             ? ParameterView.Empty
@@ -114,28 +121,21 @@ public sealed class ComponentHtmlRenderer : IComponentHtmlRenderer
 
         await using var sw = new StringWriter();
         root.WriteHtmlTo(sw);
+
         string html = sw.ToString();
-        return await ToBrowserHtml(html);
+
+        return htmlDecode
+            ? HtmlDecode(html)
+            : html;
     }
 
-    private static async ValueTask<string> ToBrowserHtml(string html, CancellationToken cancellationToken = default)
-    {
-        if (html.IsNullOrEmpty())
-            return html;
-
-        IBrowsingContext context = BrowsingContext.New(Configuration.Default);
-        IDocument document = await context.OpenNewAsync(cancellation: cancellationToken);
-
-        var parser = context.GetService<IHtmlParser>();
-        INodeList fragment = parser.ParseFragment(html, document.Body);
-
-        await using var writer = new StringWriter();
-
-        foreach (INode node in fragment)
-            await node.ToHtmlAsync(writer).NoSync();
-
-        return writer.ToString();
-    }
+    /// <summary>
+    /// Decodes HTML entities in the rendered markup.
+    /// Intended for Tailwind content scanning (e.g., arbitrary variants like <c>[&amp;_svg]</c>),
+    /// not for producing valid HTML markup to serve to browsers.
+    /// </summary>
+    private static string HtmlDecode(string html)
+        => string.IsNullOrEmpty(html) ? html : WebUtility.HtmlDecode(html);
 
     public async ValueTask DisposeAsync()
     {

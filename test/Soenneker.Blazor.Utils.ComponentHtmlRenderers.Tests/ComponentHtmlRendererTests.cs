@@ -101,4 +101,20 @@ public sealed class ComponentHtmlRendererTests : FixturedUnitTest
         var renderer = Resolve<IComponentHtmlRenderer>(true);
         await renderer.DisposeAsync();
     }
+
+    /// <summary>
+    /// Ensures the renderer does not produce malformed button HTML with corrupted classes
+    /// (e.g. &amp; instead of & in arbitrary selectors, jumbled/broken class attribute).
+    /// </summary>
+    [Fact]
+    public async Task RenderToHtml_does_not_generate_malformed_button_with_corrupted_class()
+    {
+        const string malformedButton =
+            "<button class=\"[&amp;_svg:not([class*= aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 b-1 bg-clip-padding border border-transparent dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 font-medium q-button rounded-lg text-sm\"></button>";
+
+        string html = await _util.RenderToHtml<ButtonTestComponent>();
+
+        html.Should().NotContain(malformedButton);
+        html.Should().NotContain("[&amp;_svg"); // Key corruption: & must not become &amp; in class
+    }
 }
